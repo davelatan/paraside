@@ -1,0 +1,152 @@
+# Guida alla Configurazione degli Oggetti JSON per il Tuo Script
+
+Questa guida ti aiuterà a comprendere come strutturare i JSON per configurare correttamente gli oggetti gestiti dal tuo script.
+
+## Struttura Generale di un Oggetto JSON
+Ogni oggetto JSON che viene passato alla funzione `render(jsonData)` deve seguire questa struttura di base:
+
+```json
+[
+    {
+        "type": "<tipo>",
+        "name": "<nome_univoco>",
+        "attributes": {
+            "mode": "<modalità>",
+            "styles": {
+                "istyles": { "style": "<stili_css>" },
+                "estyles": { "style": "<stili_css_esterni>" },
+                "cstyles": { "style": "<stili_caption>" }
+            },
+            "events": {
+                "click": "<url_azione>",
+                "change": "<url_azione>"
+            },
+            "cont": {
+                "label": "<testo_etichetta>",
+                "text": "<testo>",
+                "html": "<html_contenuto>",
+                "items": { "chiave1": "Valore1", "chiave2": "Valore2" }
+            }
+        }
+    }
+]
+```
+
+## Esempi per i Diversi Tipi di Oggetti
+### **1. Bottone (`button`)
+```json
+[
+    {
+        "type": "button",
+        "name": "btnInvia",
+        "attributes": {
+            "cont": {
+                "label": "Invia",
+                "licon": "icon_left.png",
+                "ricon": "icon_right.png"
+            },
+            "events": {
+                "click": "/api/invia"
+            }
+        }
+    }
+]
+```
+
+### **2. Input Text (`input`)
+```json
+[
+    {
+        "type": "input",
+        "name": "txtNome",
+        "attributes": {
+            "cont": { "text": "Mario Rossi" },
+            "events": { "change": "/api/salvaNome" }
+        }
+    }
+]
+```
+
+### **3. Select Dropdown (`select`)
+```json
+[
+    {
+        "type": "select",
+        "name": "ddlOpzioni",
+        "attributes": {
+            "cont": {
+                "items": {
+                    "1": "Opzione 1",
+                    "2": "Opzione 2",
+                    "3": "Opzione 3"
+                }
+            }
+        }
+    }
+]
+```
+
+### **4. Lista (`list`)
+```json
+[
+    {
+        "type": "list",
+        "name": "lstElementi",
+        "attributes": {
+            "cont": {
+                "items": {
+                    "elem1": "Elemento 1",
+                    "elem2": "Elemento 2"
+                }
+            },
+            "events": {
+                "click": "/api/seleziona"
+            }
+        }
+    }
+]
+```
+
+### **5. Layout a Griglia (`layout`)
+```json
+[
+    {
+        "type": "layout",
+        "name": "gridLayout",
+        "attributes": {
+            "orientation": "horizontal",
+            "frames": [
+                { "name": "frame1", "size": "50%" },
+                { "name": "frame2", "size": "50%" }
+            ]
+        }
+    }
+]
+```
+
+### **6. Tabella (`table`)
+```json
+[
+    {
+        "type": "table",
+        "name": "tblDati",
+        "attributes": {
+            "cont": {
+                "headers": ["Nome", "Cognome", "Età"],
+                "rows": {
+                    "1": ["Mario", "Rossi", "30"],
+                    "2": ["Luigi", "Bianchi", "25"]
+                }
+            }
+        }
+    }
+]
+```
+
+## Considerazioni Finali
+- **Ogni oggetto deve avere un `type` e un `name` univoco**.
+- **Gli attributi sono opzionali** ma permettono di personalizzare il comportamento e lo stile.
+- **Gli eventi (`events`) permettono di collegare azioni agli oggetti** come `click`, `change`, etc.
+- **I contenuti (`cont`) definiscono etichette, valori e opzioni disponibili**.
+
+Ora sei pronto per configurare gli oggetti JSON in modo corretto!
