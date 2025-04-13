@@ -1,36 +1,288 @@
-# Guida alla Configurazione degli Oggetti JSON per il Tuo Script
+La libreria paraside permette la creazione dinamica di oggetti per user interface e la gestione di variabili globali locali di sessione o temporanee
+nonchè la gestione degli eventi degli oggetti creati con la relativa esecuzione di chiamate ajax
+
+# Guida alla Configurazione degli Oggetti JSON per il Tuo Script 
 
 Questa guida ti aiuterà a comprendere come strutturare i JSON per configurare correttamente gli oggetti gestiti dal tuo script.
 
 ## Struttura Generale di un Oggetto JSON
+Ogni oggetto prodotto ad eccezione dell'oggetto "div" è composto da in div esterno, un div caption e l'oggetto specifico (input, table, ecc) */
 Ogni oggetto JSON che viene passato alla funzione `render(jsonData)` deve seguire questa struttura di base:
 
+
 ```json
+	[
+		{
+			"type": "<tipo>", ## input, password, color, datetime, textarea, date, ide, button, layout, frame, iframe, div, select, checkbox, radio, editor, table, img, label, list, tree
+			"name": "<nome_univoco>",
+			"attributes": {
+				"window" : < parametro solo di frame, se 1 il div ha unatestata e può essere spostato con il mouse sullo schermo>  
+				"mode": "<modalità>",
+				"styles": {
+					"istyles": { "style": "<stile_css>", "mstyle":"<stile_css_mobile>" },
+					"estyles": { "style": "<stile_css_esterni>", "mstyle": "<stile_css_mobile>" },
+					"cstyles": { "style": "<stile_caption>", "mstyle": "<stile_css_mobile>" }
+				},
+				"events": {
+					"lock"=><determina se la finestra resta bloccata fino al termine dell'esecuzione dell'evento> ,
+					"click": "<url_azione>",
+					"onclick": "<jscript>",
+					"post"; [<contiene l'elenco delle variabili da inviare in post a seguito dell'evento>],
+					"get"; [<contiene l'elenco delle variabili da inviare in et a seguito dell'evento>],
+					
+				},
+				"cont": {
+					"label": "<testo_etichetta>",
+					"text": "<testo>",
+					"html": "<html_contenuto>",
+					"items": { "chiave1": "Valore1", "chiave2": "Valore2" }
+				}
+			}
+		}
+	]
+```
+
+
 [
     {
-        "type": "<tipo>",
-        "name": "<nome_univoco>",
+        "type": "input",  /* oggetto da creare */
+        "name": "miooggetto", /* varname che corrisponde all'identificatore univoco dell'oggetto e all varname del contenuto se inviato in caso di eventi */
+        "attributes": {  /* contiene l'insieme degli attributi che caratterizzano un oggetto */
+            
+			"container": "", /* varname del contenitore dell'oggetto, il conteitore va creato prima dell'oggetto in odine cronologico quindi di items */
+            
+			"styles": { /* definisce l'insieme degli stili e dei cambiamenti in caso di dispositivo mobile */
+					"estyles": { /* style del contenitore esterno dell'oggetto paraside */
+						"style": "width: 30%;", /* style desktop del contenitore esterno */
+						"mstyle": "" /* style mobile del contenitore esterno  */
+					},
+					"cstyles": { /* style del caption  esterno dell'oggetto paraside */
+						"style": "width: 30%;", /* style desktop del caption */
+						"mstyle": "" /* style mobile del caption */
+					},
+					"istyles": { /* style del html specifico interno dell'oggetto paraside */
+						"style": "width: 30%;", /* style desktop dell oggetto intero */
+						"mstyle": "" /* style mobile dell oggetto intero */
+					}
+            },
+			
+            "events": { /* insieme dei contenuti per la gestione degli eventi */
+					"lock"=>1, 	/* determina se l'interfaccia viene bloccata in attesa dell'esecuzione della chiamata ajax */
+					"click": "registrar.php", /* azione ajax dell'evento click sull'oggetto, paraside gestisce qualsiasi evento gestito da jquery */
+					"onclick": "alert('ok ci sono');", /* event attribute  paraside gestisce qualsiasi evento gestito da html per event attribute */
+					"post": {  /* parametri inviati in caso di evento */
+										
+										"codify"=>"SHA512", /* determina se prima dell'invio il valore contenuto deve essere codificato */
+										
+										"send": { /* variabili inviate come preimpostate in fase di costruzione dell'interfaccia */ 
+												"auth[driver]": "pgsql",
+												"auth[server]": "localhost",
+												"auth[username]": "superadmin",
+												"auth[password]": "saxxxx"
+										},
+										
+										"local"=>  [ /* indica le etichette degli oggetti paraside renderizzati sull'interfaccia dei quali si desidera inviare in post il valore o il contenuto */
+															"miooggetto",
+															"miooggetto2",
+														]
+														
+										"attr": [ /* indica le etichette degli attributi degli oggetti paraside renderizzati sull'interfaccia dei quali si desidera inviare in post il contenuto */
+													"userdata"
+												 ],
+											
+										"store": { /* variabili prelevate dagli store da inviare in post */
+														"vars": [ /* etichette delle variabili generiche temporanee da inviare in post */
+															"v-pippo",
+															"v-fico"
+														],
+														"session": [ /* etichette delle variabili prelevate dal session storage del browser  da inviare in post */
+															"s-fico",
+															"s-pippo"
+														],
+														"local": [  /* variabili prelevate dal local storage del browser  da inviare in post */
+															"l-pippo",
+															"l-fico"
+														]
+													},					
+					
+								}
+							}	
+		}
+	}
+]	
+
+## Come registrare variabili sul client da utilizzare per gli eventi
+[
+    {
+        "type": "store",
         "attributes": {
-            "mode": "<modalità>",
+		
+			## local registra i dati nel local storage del browser	 
+            "local": [
+			
+					 ],
+			## session registra i dati nel session storage del browser	 
+            "session":  [
+			
+						],
+			## vars permette di definire e leggere variavili generali jscript				
+            "vars": [ 
+						"v-pippo":"pippo",
+						"v-pluto":"pippo",		
+					],
+			## context permette di definire variabili che vengono sempre inviate in post a seguito di eventi senza la necessità di invocazione esplicita in post->store	
+            "context":  [
+							"v-pippo":"pippo",
+							"v-pluto":"pippo",				
+						]
+        }
+    }	
+]	
+	
+
+Esempi :
+
+[
+    {
+        "type": "frame",
+        "name": "loginframe",
+        "attributes": {
             "styles": {
-                "istyles": { "style": "<stili_css>" },
-                "estyles": { "style": "<stili_css_esterni>" },
-                "cstyles": { "style": "<stili_caption>" }
+                "estyles": {
+                    "style": "height:100%; width: 100%; ",
+                    "mstyle": ""
+                }
+            }
+        }
+    },
+    {
+        "type": "input",
+        "name": "logindata[account]",
+        "attributes": {
+            "container": "loginframe",
+            "styles": {
+                "estyles": {
+                    "style": "width: 100%;",
+                    "mstyle": ""
+                }
             },
             "events": {
-                "click": "<url_azione>",
-                "change": "<url_azione>"
+                "enterKey": "login.php",
+                "lpost": [
+                    "searg"
+                ]
             },
             "cont": {
-                "label": "<testo_etichetta>",
-                "text": "<testo>",
-                "html": "<html_contenuto>",
-                "items": { "chiave1": "Valore1", "chiave2": "Valore2" }
+                "label": "User",
+                "text": ""
             }
+        }
+    },
+    {
+        "type": "password",
+        "name": "logindata[password_hash]",
+        "attributes": {
+            "container": "loginframe",
+            "styles": {
+                "estyles": {
+                    "style": "width: 100%;",
+                    "mstyle": ""
+                }
+            },
+            "events": {
+                "codify": "SHA512",
+                "enterKey": "login.php",
+                "lpost": [
+                    "searg"
+                ]
+            },
+            "cont": {
+                "label": "Password",
+                "text": ""
+            }
+        }
+    },
+    {
+        "type": "button",
+        "name": "action[registrati]",
+        "attributes": {
+            "container": "loginframe",
+            "styles": {
+                "estyles": {
+                    "style": "width: 30%;",
+                    "mstyle": ""
+                }
+            },
+            "events": {
+                "click": "registrar.php"
+            },
+            "cont": {
+                "label": "Sign up",
+                "ricon": "https:\/\/www.paraside.cc\/libs\/icons\/api.iconify.design\/emoji-smile-wink-twotone.svp?color=%23fff"
+            }
+        }
+    },
+    {
+        "type": "button",
+        "name": "action[login]",
+        "attributes": {
+            "container": "loginframe",
+            "styles": {
+                "estyles": {
+                    "style": "width: 30%;",
+                    "mstyle": ""
+                }
+            },
+            "events": {
+                "onclick": "alert('ok ci sono');",
+                "click": "registrar.php?Action=login",
+                "lpost": [
+                    "logindata[*]"
+                ]
+            },
+            "cont": {
+                "label": "Login",
+                "ricon": "https:\/\/www.paraside.cc\/libs\/icons\/api.iconify.design\/downloading-loop.svp?color=%23fff"
+            }
+        }
+    },
+    {
+        "type": "button",
+        "name": "action[test]",
+        "attributes": {
+            "container": "loginframe",
+            "styles": {
+                "estyles": {
+                    "style": "width: 30%;",
+                    "mstyle": ""
+                }
+            },
+            "events": {
+                "click": "registrar.php?Action=dbcreate",
+                "lpost": [
+                    "logindata[*]"
+                ]
+            },
+            "cont": {
+                "label": "Crea DB",
+                "ricon": "https:\/\/www.paraside.cc\/libs\/icons\/api.iconify.design\/downloading-loop.svp?color=%23fff"
+            }
+        }
+    },
+    {
+        "type": "store",
+        "name": "store",
+        "attributes": {
+            "local": [],
+            "session": [],
+            "vars": [],
+            "context": []
         }
     }
 ]
-```
+
+
+
 
 ## Esempi per i Diversi Tipi di Oggetti
 ### **1. Bottone (`button`)

@@ -1,21 +1,34 @@
 const ide = {};
 const edi = {};
+const iframe = {};
+
 var debug=0; 
+
 var store = { 
-    vars: {"pippo":"paperinik"}, 
+    vars: {}, 
     context: {} , 
+	localcontext: localStorage.getItem("parasidecontext") ? JSON.parse(LZString.decompress(localStorage.getItem("parasidecontext"))) || {} : {}, 
     local: localStorage.getItem("paraside") ? JSON.parse(LZString.decompress(localStorage.getItem("paraside"))) || {} : {}, 
     session: sessionStorage.getItem("paraside") ? JSON.parse(LZString.decompress(sessionStorage.getItem("paraside"))) || {} : {}
 };
 
+function parasideconsole(title,message=""){
+	if(debug){ console.log(title, message); }
+}
+
 function render(jsonData) {
-    console.log('exec:', "Starting JSON processing");
+    parasideconsole('exec:', "Starting JSON processing");
 
     jsonData.forEach(item => {
         const { type, name, attributes = {} } = item; // Destructuring with default for attributes
-        console.log('exec:', `Processing element: type=${type}, name=${name}`);
+        parasideconsole('exec:', `Processing element: type=${type}, name=${name}`);
 
         switch (type) {
+            case "goto":
+				let $nweobj = $();
+				executeAjaxCall({  type: 'goto'  }, attributes.events, $nweobj) 
+                break;			
+			
             case "alert":
                 showMessage(name, attributes);
                 break;
@@ -40,13 +53,22 @@ function render(jsonData) {
                 }
                 break;
 
+            case "urlscript":
+                try {
+                    loadScript(name);
+                } catch (e) {
+                    console.error("Error load script:", e);
+                }
+                break;
+
             case "remove":
-                $(`#${CSS.escape(name)}`).data("ext")?.remove();
+				paraside.remove(name);
+                //$(`#${CSS.escape(name)}`).data("ext")?.remove();
                 break;
 
             case "clear":
-                $(`#${CSS.escape(name)}`).empty();
-                return;
+				paraside.clear(name);
+				return;
 
             case "unlock":
                 lockinterface(0);
@@ -55,24 +77,39 @@ function render(jsonData) {
             case "lock":
                 lockinterface(1);
                 return;
-
+				
             case "store":
                 store.vars = { ...store.vars, ...(attributes.vars || {}) };
                 store.context = { ...store.context, ...(attributes.context || {}) };
 
-                if (attributes.local) {
+                if ( Object.keys(attributes.local || {} ).length > 0 ) {
                     localStorage.setItem("paraside", LZString.compress(JSON.stringify({ ...store.local, ...attributes.local })));
                 }
-                if (attributes.session) {
+                if ( Object.keys(attributes.localcontext || {} ).length > 0 ) {
+                    localStorage.setItem("parasidecontext", LZString.compress(JSON.stringify({ ...store.localcontext, ...attributes.localcontext })));
+                }				
+                if ( Object.keys(attributes.session || {} ).length > 0 ) {
                     sessionStorage.setItem("paraside", LZString.compress(JSON.stringify({ ...store.session, ...attributes.session })));
                 }
                 break;
 
+            case "vars":
+				if (Object.keys(attributes || {}).length > 0) {
+					store.vars = { ...store.vars, ...attributes };
+				}
+				break;
+				
+            case "context":
+				if (Object.keys(attributes || {}).length > 0) {
+					store.context = { ...store.context, ...attributes };
+				}
+				break;
+			
             default:
-                if ($(`#${CSS.escape(name)}`).length === 0) {
-                    console.log(`Object not found, calling createInterface for: ${name}`);
+                if ($("#"+CSS.escape(name)).length === 0) {
+                    parasideconsole(`Object not found, calling createInterface for: ${name}`);
                     let $element = createInterface(item);
-                    updateInterface(item, $element);
+                   updateInterface(item, $element);
                 } else {
                     updateInterface(item);
                 }
@@ -80,12 +117,12 @@ function render(jsonData) {
         }
     });
 
-    console.log('exec:', "Finished JSON processing");
+    parasideconsole('exec:', "Finished JSON processing");
 }
 
 function lockinterface(value){
 		if( value && $("#locker").length == 0 )
-		{
+		{1
 			const $outerDiv = $("<locker>")
 				.addClass(`locker`)
 				.attr("id", "locker")
@@ -99,88 +136,96 @@ function lockinterface(value){
 		}
 }
 
-function updateInterface(item, $element_int = null) {
-    const { name, attributes = {} } = item;
-    const { mode, styles, events, cont = {}, options, rows, columns, nodes, attr } = attributes;
+function updateInterface(item, $element = null) {
+		const { name, attributes = {} } = item;
+		const { mode, styles, events, cont = {}, options, rows, columns, nodes, attr } = attributes;
 
-    // If no element was passed, find it in the DOM
-    if (!$element_int) $element_int = $(`#${CSS.escape(name)}`);
-    if (!$element_int.length) {
-        console.log(`Element with ID '${name}' not found.`);
-        return;
-    }
+		// If no element was passed, find it in the DOM
+		$element_int = $element;
+		if (!$element_int) $element_int = $(`#${CSS.escape(name)}`);
+		if (!$element_int.length) { parasideconsole(`Element with ID '${name}' not found.`);return; }
 
-    // Retrieve stored data on the element
-    const $element_ext = $element_int.data("ext");
-    const $element_cap = $element_int.data("cap");
-    const type = $element_int.attr("typ");
+		// Retrieve stored data on the element
+		const $element_ext = $element_int.data("ext");
+		const $element_cap = $element_int.data("cap");
+		const type = $element_int.attr("typ");
 
-    // Apply events and attributes
-    if (events) attrEvents($element_int, events);
-    if (attr) applyAttr($element_int, attr);
+		// Apply events and attributes
+		if (events) attrEvents($element_int, events);
+		if (attr) applyAttr($element_int, attr);
 
-    // Apply styles if present
-    applyStyles($element_int, styles?.istyles);
-    applyStyles($element_ext, styles?.estyles);
-    applyStyles($element_cap, styles?.cstyles);
+		// Apply styles if present
+		applyStyles($element_int, styles?.istyles);
+		applyStyles($element_ext, styles?.estyles);
+		applyStyles($element_cap, styles?.cstyles);
 
-    // Content management based on element type
-    switch (type) {
-        case "div":
-        case "layout":
-        case "frame":
-            if (cont.html) $element_int.html(cont.html);
-            break;
-        
-        case "button":
-            if (cont.label) $element_int.html(cont.label);
-            if (cont.licon) $element_int.prepend(`<img class='licon' src='${cont.licon}'>`).addClass("icons");
-            if (cont.ricon) $element_int.append(`<img class='ricon' src='${cont.ricon}'>`).addClass("icons");
-            break;
+		// Content management based on element type
+		switch (type) {
+			case "div":
+			case "layout":
+			case "frame":
+				if (cont.html) $element_int.html(cont.html);
+				break;
+			
+			case "iframe":
+				if( cont?.src ){ $element_int.attr( "src", cont.src ); }
 
-        case "tree":
-            if (Array.isArray(cont.nodes)) $element_int.append(createTreeNodes(cont.nodes, "", styles));
-            break;
+			case "button":
+				if (cont.label) $element_int.html(cont.label);
+				if (cont.licon) $element_int.prepend(`<img class='licon' src='${cont.licon}'>`).addClass("icons");
+				if (cont.ricon) $element_int.append(`<img class='ricon' src='${cont.ricon}'>`).addClass("icons");
+				break;
 
-        case "input":
-        case "textarea":
-        case "editor":
-            if (cont.text) $element_int.val(cont.text);
-            else if (cont.html) $element_int.html(cont.html);
-            break;
+			case "tree":
+				if (Array.isArray(cont.nodes)) $element_int.append(createTreeNodes(cont.nodes, "", styles));
+				break;
 
-        case "ide":
-            $element_int.text(cont.text);
-            break;
+			case "input":
+			case "textarea":
+			case "editor":
+				if (cont.text) $element_int.val(cont.text);
+				else if (cont.html) $element_int.html(cont.html);
+				break;
 
-        case "table":
-            $element_int.append(createTable(cont.headers, cont.rows, styles));
-            break;
+			case "ide":
+				//$element_int.text(cont.text);
+				if(  $element == null ) { ide[name].setValue(cont.text); }
+				break;
 
-        case "list":
-            populateList($element_int, cont.items, cont.htmlitems, name);
-            break;
+			case "table":
+				$element_int.append(createTable(cont.headers, cont.rows, styles));
+				break;
 
-        case "select":
-            populateSelect($element_int, cont.items);
-            break;
+			case "list":
+				populateList($element_int, cont.items, cont.htmlitems, name);
+				break;
 
-        case "datetime":
-            $element_int.attr("type", cont.type || "date");
-            if (cont.text) $element_int.val(cont.text);
-            break;
+			case "select":
+				if(cont?.items){populateSelect($element_int, cont.items)};
+				if (cont.text) $element_int.val(cont.text);
+				break;
 
-        case "img":
-            if (cont.src) $element_int.attr("src", cont.src);
-            break;
+			case "datetime":
+				$element_int.attr("type", cont.type || "date");
+				if (cont.text) $element_int.val(cont.text);
+				break;
 
-        default:
-            $element_int.text(attributes.content || "");
-    }
+			case "img":
+				if (cont.src) $element_int.attr("src", cont.src);
+				break;
 
-    // Handle stored events
-    const itemevents = $element_int.data("events");
-    if (itemevents) applyEvents($element_int, itemevents);
+
+            case "checkbox":
+                if(cont?.value){  $element_int.prop("checked", true); }else{$element_int.prop("checked", false); }
+				break;
+
+			default:
+				$element_int.text(attributes.content || "");
+		}
+
+		// Handle stored events
+		const itemevents = $element_int.data("events");
+		if (itemevents) applyEvents($element_int, itemevents);
 }
 
 function applyStyles($element, styles) {
@@ -204,7 +249,7 @@ function populateList($element, items, htmlitems, name) {
 }
 
 function populateSelect($element, items) {
-    if (typeof items === "object" && items !== null && !Array.isArray(items)) {
+    if (typeof items === "object" && items !== null && items !== undefined && !Array.isArray(items)) {
         const itemevents = $element.data("events");
         if (!itemevents?.required) {
             $("<option>").text("").val("").appendTo($element);
@@ -212,139 +257,142 @@ function populateSelect($element, items) {
         Object.entries(items).forEach(([key, value]) => {
             $("<option>").val(key || "").text(value || "").addClass("select-item").appendTo($element);
         });
-    } else {
-        cons('warning : ', `The attribute 'items' is not a valid object for the type 'select'.`);
-    }
+    } 
 }
 
 function createInterface(item) {
-    // Map to track created frames
-    const frames = {};
+			// Map to track created frames
+			const frames = {};
 
-    const { type, name, attributes, check } = item;
-    const { styles, events, cont, options, items, container, window } = attributes;
-    
-    // Main object creation
-    let $mainObject;
+			const { type, name, attributes, check } = item;
+			const { styles, events, cont, options, items, container, window } = attributes;
 
-    // Check if an element with the same ID already exists
-    if (type === "div") {
-        const $mainDiv = $("<div>")
-            .addClass(`${type}-ite`)
-            .attr({ id: name, name, typ: type });
+			if(type=="update"){return;}
+			// Main object creation
+			let $mainObject;
 
-        container ? $(`#${CSS.escape(container)}`).append($mainDiv) : $("body").append($mainDiv);
-        return;
-    }
-    
-    if (type === "layout") {
-        const $mainLayout = $("<div>")
-            .addClass(`layout-ext ${attributes.orientation}`)
-            .attr({ id: name, name, typ: type })
-            .data({ ext: $mainLayout, cap: "" });
+			// Check if an element with the same ID already exists
+			if (type === "div") {
+				const $mainDiv = $("<div>")
+					.addClass(`${type}-ite`)
+					.attr({ id: name, name, typ: type });
 
-        if (Array.isArray(attributes.frames)) {
-            attributes.frames.forEach((frame, index) => {
-                const $frame = $("<div>")
-                    .addClass(`layout-int ${attributes.orientation}`)
-                    .attr({ id: frame.name || `layout_${index}`, name: frame.name || `layout_${index}` })
-                    .css(attributes.orientation === "horizontal" ? { width: frame.size } : { height: frame.size });
+				container ? $(`#${CSS.escape(container)}`).append($mainDiv) : $("body").append($mainDiv);
+				return;
+			}
+			
+			if (type === "layout") {
+				const $mainLayout = $("<div>")
+					.addClass(`layout-ext ${attributes.orientation}`)
+					.attr({ id: name, name, typ: type });
+					$mainLayout.data({ ext: $mainLayout, cap: "" });
 
-                $mainLayout.append($frame);
+				if (Array.isArray(attributes.frames)) {
+					attributes.frames.forEach((frame, index) => {
+						const $frame = $("<div>")
+							.addClass(`layout-int ${attributes.orientation}`)
+							.attr({ id: frame.name || `layout_${index}`, name: frame.name || `layout_${index}` })
+							.css(attributes.orientation === "horizontal" ? { width: frame.size } : { height: frame.size });
 
-                // Add resizer bar if not the last frame
-                if (index < attributes.frames.length - 1) {
-                    $mainLayout.append($("<resizer>")
-                        .addClass(`layout-resizer ${attributes.orientation}`)
-                        .attr("data-index", index));
-                }
-            });
-        }
-        
-        container ? $(`#${CSS.escape(container)}`).append($mainLayout) : $("body").append($mainLayout);
-        initializeResizable($mainLayout, attributes.orientation);
-        return $mainLayout;
-    }
-    
-    if ($(`#${name}`).length > 0) return;
-    
-    const $outerDiv = $("<div>")
-        .attr("id", `${name}-ext`)
-        .addClass(`external ${type}-ext${window ? ` ${type}-ext-mob` : ""}`);
+						$mainLayout.append($frame);
 
-    const $innerLabel = $("<label>")
-        .addClass(`caption ${type}-cap${window ? ` ${type}-cap-mob` : ""}`);
+						// Add resizer bar if not the last frame
+						if (index < attributes.frames.length - 1) {
+							$mainLayout.append($("<resizer>")
+								.addClass(`layout-resizer ${attributes.orientation}`)
+								.attr("data-index", index));
+						}
+					});
+				}
+				
+				container ? $(`#${CSS.escape(container)}`).append($mainLayout) : $("body").append($mainLayout);
+				initializeResizable($mainLayout, attributes.orientation);
+				return $mainLayout;
+			}
+			
+			if ($('#'+CSS.escape(name)).length > 0) return;
+			
+			const $outerDiv = $("<div>")
+				.attr("id", `${name}-ext`)
+				.addClass(`external ${type}-ext${window ? ` ${type}-ext-mob` : ""}`);
 
-    if (type !== "button") {
-        if (cont?.label) $innerLabel.text(cont.label);
-        else if (cont?.htmllabel) $innerLabel.html(cont.htmllabel);
-    }
+			const $innerLabel = $("<label>")
+				.attr("id", `${name}-cap`)
+				.addClass(`caption ${type}-cap${window ? ` ${type}-cap-mob` : ""}`);
 
-    if (window) {
-        $innerLabel.append(`<span class="${type}-cap-mob-close" onclick="$('#${name}-ext').remove();">✖</span>`);
-    }
-    
-    switch (type) {
-        case "frame":
-        case "tree":
-        case "table":
-        case "list":
-            $mainObject = $("<div>");
-            break;
-        case "select":
-            $mainObject = $("<select>");
-            break;
-        case "password":
-            $mainObject = $("<input>").attr("type", "password");
-            break;
-        case "checkbox":
-            $mainObject = $("<input>").attr("type", "checkbox");
-            break;
-        case "radio":
-            $mainObject = $("<input>").attr({ type: "radio", name: cont.group });
-            break;
-        case "color":
-        case "datetime":
-            $mainObject = $("<input>");
-            break;
-        case "image":
-            $mainObject = $("<img>");
-            break;
-        case "iframe":
-            $mainObject = $("<iframe>");
-            break;
-        case "button":
-            $mainObject = $("<button>");
-            break;
-        case "ide":
-            $mainObject = $("<div>");
-            $(document).ready(() => {
-                ace.require("ace/ext/language_tools");
-                ide[name] = ace.edit(name, {
-                    mode: `ace/mode/${cont?.language ?? "text"}`,
-                    selectionStyle: cont?.language ?? "text",
-                    dragEnabled: false
-                });
-                ide[name].setHighlightActiveLine(true);
-                if (cont.wrap) ide[name].session.setUseWrapMode(true);
-                if (cont.autocompletion) ide[name].setOptions({ enableLiveAutocompletion: cont.autocompletion });
-                ide[name].resize();
-            });
-            break;
-        case "editor":
-            $mainObject = $("<textarea>");
-            $(document).ready(() => {
-                edi[name] = CKEDITOR.replace(name);
-                edi[name].config.toolbarGroups = [
-                    { name: 'clipboard', groups: ['clipboard', 'undo'] },
-                    { name: 'insert', groups: ['insert'] },
-                    { name: 'editing', groups: ['find', 'selection', 'spellchecker', 'editing'] }
-                ];
-            });
-            break;
-        default:
-            $mainObject = $(`<${type}>`);
-            break;
+			if (type !== "button") {
+				if (cont?.label) $innerLabel.text(cont.label);
+				else if (cont?.htmllabel) $innerLabel.html(cont.htmllabel);
+			}
+
+			if (window) {
+				$innerLabel.append(`<span class="${type}-cap-mob-close" onclick="paraside.remove('${name}');">✖</span>`);
+			}
+			
+			switch (type) {
+				case "update":
+					break;
+				case "frame":
+				case "tree":
+				case "table":
+				case "list":
+					$mainObject = $("<div>");
+					break;
+				case "select":
+					$mainObject = $("<select>");
+					break;
+				case "password":
+					$mainObject = $("<input>").attr("type", "password");
+					break;
+				case "checkbox":
+					$mainObject = $("<input>").attr("type", "checkbox");
+					break;
+				case "radio":
+					$mainObject = $("<input>").attr({ type: "radio", name: cont.group });
+					break;
+				case "color":
+				case "datetime":
+					$mainObject = $("<input>");
+					break;
+				case "image":
+					$mainObject = $("<img>");
+					break;
+				case "iframe":
+					$mainObject = $("<iframe>");
+					break;
+				case "button":
+					$mainObject = $("<button>");
+					break;
+				case "ide":
+					$mainObject = $("<div>");					
+					$(document).ready(() => {
+						ace.require("ace/ext/language_tools");
+						ide[name] = ace.edit(name, {
+							mode: `ace/mode/${cont?.language ?? "text"}`,
+							selectionStyle: cont?.language ?? "text",
+							dragEnabled: false
+						});
+						ide[name].setHighlightActiveLine(true);
+						if (cont.wrap) ide[name].session.setUseWrapMode(true);
+						if (cont.autocompletion) ide[name].setOptions({ enableLiveAutocompletion: cont.autocompletion });
+						ide[name].resize();
+						ide[name].setValue(cont?.text);
+					});					 
+					break;
+				case "editor":
+					$mainObject = $("<textarea>");
+					$(document).ready(() => {
+						edi[name] = CKEDITOR.replace(name);
+						edi[name].config.toolbarGroups = [
+							{ name: 'clipboard', groups: ['clipboard', 'undo'] },
+							{ name: 'insert', groups: ['insert'] },
+							{ name: 'editing', groups: ['find', 'selection', 'spellchecker', 'editing'] }
+						];
+					});
+					break;
+				default:
+					$mainObject = $(`<${type}>`);
+					break;
     }
 
     $mainObject.addClass(`internal ${type}-ite`)
@@ -354,7 +402,7 @@ function createInterface(item) {
     $outerDiv.append($innerLabel, $mainObject);
     container ? $(`#${CSS.escape(container)}`).append($outerDiv) : $("body").append($outerDiv);
     
-    console.log("log:", $mainObject.data("ext"));
+    parasideconsole("log:", $mainObject.data("ext"));
     
     return $mainObject;
 }
@@ -383,7 +431,7 @@ function showMessage(message, attributes) {
         });
     });
 
-    $messageBox.append($closeButton).append($('<div class="alert-message">').text(message));
+    $messageBox.append($closeButton).append($('<div class="alert-message">').html(message));
     $messageContainer.append($messageBox);
 
     setTimeout(() => {
@@ -462,96 +510,140 @@ function fetchData($this, event) {
 }
 
 function executeAjaxCall(event, eventConfig, $this) {
-    const eventType = event.type;
-    const ajaxUrl = eventConfig[eventType];
-    const lpost = eventConfig.lpost || [];
-    const storel = eventConfig.store || [];
-    const lock = eventConfig.lock || 1;
+	
+		const eventType = event.type;
+		const ajaxUrl = eventConfig[eventType];
+		const lpost = eventConfig.lpost || eventConfig?.post?.local || [];
+		const lget = eventConfig.lget || eventConfig?.get?.local || [];
+		const attri = eventConfig?.post?.attr || [];
+		const storel = eventConfig.store || [];
+		const send = eventConfig.send || [];
+		const tosend = eventConfig?.post?.send || [];
+		const lock = eventConfig.lock ?? 1;
+		const target = eventConfig?.target || "ajax";
 
-    if (lock) {
-        lockinterface(1);
-    } 
+		if (lock) { lockinterface(1); } 
 
-    if (!ajaxUrl) {
-        console.error(`URL not configured for event: ${eventType}`);
-        return;
-    }
+		if (!ajaxUrl) { console.error(`URL not configured for event: ${eventType}`); return; }
 
-    const postData = {};
-    let $elements = {};
+		var postData = {};
+		var getData = {};
+		let $elements = {};
 
-    lpost.forEach((varName) => {
-        if (varName.includes("[*]")) {
-            selector = "[name^='" + varName.slice(0, -3) + "']";
-            $elements = $(selector);
-        } else {
-            $elements = $("#" + CSS.escape(varName));
-        }
+		lpost.forEach((varName) => 
+		{			
+			if (varName.includes("[*]")) { selector = "[name^='" + varName.slice(0, -3) + "']"; $elements = $(selector); } else { $elements = $("#" + CSS.escape(varName)); }
+			postData=elementsdata($elements,postData);
+		});
+		lget.forEach((varName) => 
+		{			
+			if (varName.includes("[*]")) { selector = "[name^='" + varName.slice(0, -3) + "']"; $elements = $(selector); } else { $elements = $("#" + CSS.escape(varName)); }
+			getData=elementsdata($elements,getData);
+		});
 
-        if ($elements.length) {
-            $elements.each(function () {
-                const $element = $(this);
-                const thisConfig = $element.data("events");
-                const codify = thisConfig?.codify || "";
-                let name = $element.attr("name");
+		Object.entries(attri).forEach(([varName, value]) => {
+				$elements = $("[" + CSS.escape(value) + "]");
+				postData[varName]=elementsdata($elements) || "";
+		});		
+		Object.entries(tosend).forEach(([varName, value]) => {
+				postData[varName]=value;
+		});
+		
+		if (storel?.local) { 
+			let storedData = localStorage.getItem("paraside");
+			let lstore = storedData ? JSON.parse(LZString.decompress(storedData)) || {} : {};
+			storel.local.forEach((varName) => { postData[varName] = lstore[varName] || {}; }); 
+		}
+		
+		let storedData = localStorage.getItem("parasidecontext");
+		let lstore = storedData ? JSON.parse(LZString.decompress(storedData)) || {} : {};
 
-                if ($element.hasClass("tree-node") || $element.hasClass("tree-ite")) {
-                    postData[name] = $element.attr("tree-sct");
-                } else if ($element.is("tr")) {
-                    postData[name] = $element.attr("table-sct");
-                } else if ($element.hasClass("list-ite")) {
-                    postData[name] = $element.attr("list-sct");
-                } else if ($element.hasClass("ide-ite")) {
-                    postData[name] = ide[name].session.getValue(); 
-                } else if ($element.hasClass("checkbox-ite")) {
-                    postData[name] = $element.prop("checked");
-                } else {
-                    postData[name] = $element.val() || $element.text() || $element.attr("value");
-                }
+		if (lstore) {
+			Object.keys(lstore).forEach((varName) => {
+				postData[varName] = lstore[varName] || {};
+			});
+		}
 
-                if (codify) {
-                    postData[name] = applyCodify(postData[name], codify); 
-                }
-            });
-        }
-    });
+		if (send) {
+			Object.keys(send).forEach((varName) => {
+				postData[varName] = send[varName] || {};
+			});
+		}
 
-    if (storel?.local) { 
-        let lstore = JSON.parse(LZString.decompress(localStorage.getItem("paraside")));
-        storel.local.forEach((varName) => { postData[varName] = lstore[varName] || {}; }); 
-    }
-    if (storel?.session) { 
-        let sstore = JSON.parse(LZString.decompress(sessionStorage.getItem("paraside")));
-        storel.session.forEach((varName) => { postData[varName] = sstore[varName] || {}; });
-    }
-    if (storel?.vars) {
-        storel.vars.forEach((varName) => { postData[varName] = store.vars[varName] || null; });
-    }
-    Object.keys(store.context).forEach(varName => { postData[varName] = store.context[varName]; });
+		if (storel?.session) { 
+			let sstore = JSON.parse(LZString.decompress(sessionStorage.getItem("paraside")));
+			storel.session.forEach((varName) => { postData[varName] = sstore[varName] || {}; });
+		}
+		if (storel?.vars) {
+			storel.vars.forEach((varName) => 
+			{ 
+				postData[varName] = store.vars[varName] || null; 
+			});
+		}
+		Object.keys(store.context).forEach(varName => { postData[varName] = store.context[varName]; });
 
-    console.log("Executing AJAX call:", ajaxUrl);
-    console.log("POST parameters:", postData);
+		postData['parasidecall']=1;
 
-    $.ajax({
-        url: ajaxUrl,
-        method: "POST",
-        data: postData,
-        success: (response) => {
-            try {
-                console.log("Response received:", response);
-                eval(response);
-                lockinterface(0);
-                loaded();
-            } catch (e) {
-                lockinterface(0);
-                console.error("Error executing response:", response, e);
-            }
-        },
-        error: (xhr, status, error) => {
-            lockinterface(0);
-            console.error("Event error:", status, error);
-        },
-    });
+		if(target=="function" )
+		{
+			window[ajaxUrl](postData);
+		}
+		else if(target=="ajax")
+		{
+			parasideconsole("Executing AJAX call:", ajaxUrl);
+			parasideconsole("POST parameters:", postData);
+
+			var url = urlset(ajaxUrl, getData);
+
+				$.ajax({
+					url: url,
+					method: "POST",
+					data: postData,
+					success: (response) => {
+						try {
+							parasideconsole("Response received:", response);
+							eval(response);
+							lockinterface(0);
+							loaded();
+						} catch (e) {
+							lockinterface(0);
+							console.error("Error executing response:", response, e);
+						}
+					},
+					error: (xhr, status, error) => {
+						lockinterface(0);
+						console.error("Event error:", status, error);
+					},
+				});			
+		}
+		else if (target=="_blank")
+		{
+			var url = urlset( ajaxUrl , getData , postData , 1 );		
+			window.open( url, "_blank" );
+			lockinterface(0);
+		}
+	
+}
+
+function elementsdata($elements,postData={}){
+	if ($elements.length) 
+	{					
+			$elements.each(function () {
+				const $element = $(this);
+				const thisConfig = $element.data("events");
+				const codify = thisConfig?.codify || "";
+				let name = $element.attr("name");
+				if ($element.hasClass("tree-node") || $element.hasClass("tree-ite")) { postData[name] = $element.attr("tree-sct"); } 
+				else if ($element.is("tr")) { postData[name] = $element.attr("table-sct"); } 
+				else if ($element.hasClass("list-ite")) { postData[name] = $element.attr("list-sct"); } 
+				else if ($element.hasClass("ide-ite")) { postData[name] = ide[name].session.getValue(); } 
+				else if ($element.hasClass("checkbox-ite")) { postData[name] = $element.prop("checked"); } 
+				else { postData[name] = $element.val() || $element.text() || $element.attr("value") || ""; }
+
+				if (codify) { postData[name] = applyCodify(postData[name], codify); }
+			});					
+	}	
+	return postData;	
 }
 
 function initializeResizable($layoutContainer, orientation) {
@@ -642,14 +734,17 @@ function createTreeNodes(nodes, path = "", styles = {}) {
     const $nodeWrapper = $("<div>").addClass("tree-node-wrapper");
 
     nodes.forEach((node) => {
-        const currentPath = path ? `${path}.${node.key}` : node.key;
+        const currentPath = path ? `${path}/${node.key}` : node.key;
 
         const $node = $("<div>")
             .addClass("tree-node")
             .attr("style", styles?.nodeStyles?.style ?? "")
             .data("path", currentPath);
 
-        if (node.children && Array.isArray(node.children) && node.children.length > 0) {
+        if (node.children) {
+            // *** FISS: Assicuriamoci che "children" sia sempre un array ***
+            const childNodes = Array.isArray(node.children) ? node.children : [node.children];
+
             const $toggleButton = $("<span>")
                 .addClass("tree-toggle")
                 .text(node.expanded ? "-" : "+")
@@ -667,7 +762,7 @@ function createTreeNodes(nodes, path = "", styles = {}) {
                 $childrenContainer.hide();
             }
 
-            node.children.forEach((childNode) => {
+            childNodes.forEach((childNode) => {
                 $childrenContainer.append(createTreeNodes([childNode], currentPath, styles));
             });
 
@@ -733,92 +828,116 @@ function createTable(headers, rows, styles = {}) {
 }
 
 function attrEvents($element, events) {
+	if (typeof events !== "undefined" && typeof events.enable !== "undefined") 
+	{
+		
+		if(events.enable)
+		{ 
+			$element.removeAttr("disabled");
+			$element.removeClass("disabled"); 
+		}
+		else{ $element.addClass("disabled"); $element.attr("disabled", true); }
+	}
+	
     if (!events) return;
     $element.attr("data-events", JSON.stringify(events));
 }
 
 function applyEvents($element, events) {
-    if (!events) return;
+	
+		if (!events) return;
 
-    if ($element.hasClass("tree-ite")) {
-        $element.find(".tree-node").each(function () {
-            const $node = $(this);
+		if ($element.hasClass("tree-ite")) {
+			$element.find(".tree-node").each(function () {
+				const $node = $(this);
 
-            $node.on("click", function () {
-                const path = $(this).data("path");
-                $element.find(".tree-node-selected").removeClass("tree-node-selected");
-                $(this).addClass("tree-node-selected");
-                $element.attr("tree-sct", path);
-            });
+				$node.on("click", function () {
+					const path = $(this).data("path");
+					$element.find(".tree-node-selected").removeClass("tree-node-selected");
+					$(this).addClass("tree-node-selected");
+					$element.attr("tree-sct", path);
+				});
 
-            $node.on(Object.keys(events || {}).join(" "), function (event) {
-                fetchData($node, event);
-            });
-        });
-    } else if ($element.hasClass("table-ite-div")) {
-        $element.find("tbody tr").each(function () {
-            const $row = $(this);
+				$node.on(Object.keys(events || {}).join(" "), function (event) {
+					fetchData($node, event);
+				});
+			});
+			
+			const ignoredEvents = ["post","lpost", "required", "lock"];
+			Object.keys(events || {}).forEach(key => {
+				if (ignoredEvents.includes(key)) return;
+				const eventValue = events[key];
+				if (key.startsWith("on")) {
+					$element.attr(key, eventValue);
+				} 
+			});
+		} 
+		else if ($element.hasClass("table-ite-div")) {
+			$element.find("tbody tr").each(function () {
+				const $row = $(this);
 
-            $row.on("click", function (event) {
-                const $cell = $(event.target);
-                const cellIndex = $cell.index();
-                const colName = $element.find("thead th").eq(cellIndex).text();
-                const rowKey = $row.attr("key");
-                const cellContent = $cell.text();
+				$row.on("click", function (event) {
+					const $cell = $(event.target);
+					const cellIndex = $cell.index();
+					const colName = $element.find("thead th").eq(cellIndex).text();
+					const rowKey = $row.attr("key");
+					const cellContent = $cell.text();
 
-                const tableData = {
-                    key: rowKey,
-                    column: colName,
-                    content: cellContent,
-                };
+					const tableData = {
+						key: rowKey,
+						column: colName,
+						content: cellContent,
+					};
 
-                $element.attr("table-sct", JSON.stringify(tableData));
-            });
+					$element.attr("table-sct", JSON.stringify(tableData));
+				});
 
-            $row.on(Object.keys(events || {}).join(" "), function (event) {
-                fetchData($row, event);
-            });
-        });
-    } else if ($element.hasClass("list-ite")) {
-        $element.find(".list-item").each(function () {
-            const $row = $(this);
+				$row.on(Object.keys(events || {}).join(" "), function (event) {
+					fetchData($row, event);
+				});
+			});
+		} 
+		else if ($element.hasClass("list-ite")) {
+			$element.find(".list-item").each(function () {
+				const $row = $(this);
 
-            $row.on("click", function () {
-                const listData = {
-                    key: $(this).attr("data-key"),
-                    text: $(this).text(),
-                };
+				$row.on("click", function () {
+					const listData = {
+						key: $(this).attr("data-key"),
+						text: $(this).text(),
+					};
 
-                $element.find(".list-item-selected").removeClass("list-item-selected");
-                $(this).addClass("list-item-selected");
-                $element.attr("list-sct", JSON.stringify(listData));
-            });
+					$element.find(".list-item-selected").removeClass("list-item-selected");
+					$(this).addClass("list-item-selected");
+					$element.attr("list-sct", JSON.stringify(listData));
+				});
 
-            $element.off(Object.keys(events || {}).filter(key => !["lpost", "required", "lock"].includes(key)).join(" "))
-                .on(
-                    Object.keys(events || {}).filter(key => !["lpost", "required", "lock"].includes(key)).join(" "),
-                    function (event) {
-                        fetchData($row, event);
-                    }
-                );
-        });
-    } else {
-        const ignoredEvents = ["lpost", "required", "lock"];
-
-        Object.keys(events || {}).forEach(key => {
-            if (ignoredEvents.includes(key)) return;
-
-            const eventValue = events[key];
-
-            if (key.startsWith("on")) {
-                $element.attr(key, eventValue);
-            } else {
-                $element.off(key).on(key, function (event) {
-                    fetchData($(this), event);
-                });
-            }
-        });
-    }
+				$element.off(Object.keys(events || {}).filter(key => !["post","lpost", "required", "lock"].includes(key)).join(" "))
+					.on(
+						Object.keys(events || {}).filter(key => !["post","lpost", "required", "lock"].includes(key)).join(" "),
+						function (event) {
+							fetchData($row, event);
+						}
+					);
+			});
+		} 
+		else {
+			
+				const ignoredEvents = ["post","lpost", "required", "lock"];
+				Object.keys(events || {}).forEach(key => {
+					if (ignoredEvents.includes(key)) return;
+					const eventValue = events[key];
+					if (key.startsWith("on")) {
+						$element.attr(key, eventValue);
+					} else {
+						$element.off(key).on(key, function (event) {
+							fetchData($(this), event);
+						});
+					}
+				});
+				
+		}
+		
 }
  
 function applyAttr($element, attr) {
@@ -830,7 +949,7 @@ function applyCodify(text, code) {
     code = code.toUpperCase();
     switch (code) {
         case "BASE64":
-            return btoa(text);
+            return btoa(encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
         case "MD5":
             return CryptoJS.MD5(text).toString();
         case "SHA1":
@@ -845,6 +964,7 @@ function applyCodify(text, code) {
 }
 
 function loaded() {
+	
     let isDragging = false;
     let offsetX, offsetY;
 
@@ -884,12 +1004,127 @@ function loaded() {
             $(".dragging").removeClass("dragging");
         }
     });
+	
+	ResponsivStyleUpdate();
+	
+	$(window).resize(function () {ResponsivStyleUpdate(); });
 }
 
-function cons(label,content="",nodeb=0){ if(debug || nodeb){ console.log(label,content); } }
+function cons(label,content="",nodeb=0){ if(debug || nodeb){ parasideconsole(label,content); } }
+
+function urlset(url, getData = {}, postData = {}, getcodify = 0) {
+    // 1) Completare l'URL se è parziale
+	if (!url.startsWith('http://') && !url.startsWith('https://')) {
+		const currentPath = window.location.pathname;
+		const baseDir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+		url = window.location.origin + baseDir + url;
+	}
+    // 2) Estrarre i parametri già presenti nell'URL
+    let urlObj = new URL(url, window.location.origin);
+    let params = new URLSearchParams(urlObj.search);
+
+    // 3) Accodare i parametri GET passati in getData
+    for (let key in getData) {
+        params.set(key, getData[key]);
+    }
+    
+    // 4) Se getcodify è 1, comprimere postData con compressToBase64 e accodarlo ai parametri GET
+    if (getcodify === 1 && Object.keys(postData).length > 0) {
+        let compressedPostData = LZString.compressToBase64(JSON.stringify(postData));
+        params.set("prsdpst", compressedPostData);
+    }
+    
+    // 5) Ricostruire l'URL con i nuovi parametri GET
+    urlObj.search = params.toString();
+    
+    return urlObj.toString();
+}
+
+function loadScript(url, callback) {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+
+    // Verifica che il browser supporti il caricamento asincrono
+    if (script.readyState) {  // Per IE
+        script.onreadystatechange = function() {
+            if (script.readyState === "loaded" || script.readyState === "complete") {
+                script.onreadystatechange = null;
+                if (callback) callback();
+            }
+        };
+    } else {  // Per altri browser
+        script.onload = function() {
+            if (callback) callback();
+        };
+    }
+
+    script.src = url;
+    document.getElementsByTagName("head")[0].appendChild(script);
+}
+
+function ResponsivStyleUpdate() {
+    const larghezza = $(window).width();
+
+    $(".external").each(function () {
+        const $el = $(this);
+        const stylesAttr = $el.attr("styles");
+        if (!stylesAttr) return;
+
+        try {
+            const stylesObj = JSON.parse(stylesAttr.replace(/&quot;/g, '"'));
+
+            // Leggi stili
+            const stileDesktop = stylesObj.style || "";
+            const stileMobile = stylesObj.mstyle;
+
+            if (larghezza < 800) {
+                if (stileMobile!=="") {
+                    $el.attr("style", stileMobile);
+                }
+                // Se mstyle è false, non cambia nulla
+            } else {
+                $el.attr("style", stileDesktop);
+            }
+        } catch (e) {
+            console.error("Errore parsing JSON in styles:", e);
+        }
+    });
+}
+
+
+
+const paraside = {
+	
+	event(events){
+		let $nweobj = $();
+		executeAjaxCall({  type: 'goto'  }, events, $nweobj) 
+	},
+    remove(name) {
+				$('#'+CSS.escape(name)).remove(); 		
+				$('#'+CSS.escape(name)+"-ext").remove(); 
+	},
+	clear(name){
+				let $element=$(`#${CSS.escape(name)}`);
+				if( $element.attr("typ") == "select" )
+				{ 
+					$element.val( $element.find("option:first").val() );
+				}
+				else{$element.empty();}
+	},
+	getdata(name) { return elementsdata( $("#" + CSS.escape(name)) ); },
+	enable(name,value=true){ 
+		if(!value){ 
+			$('#' + CSS.escape(name)).addClass("disabled");
+			$('#' + CSS.escape(name)).attr("disabled", true); 	
+		} else { 
+			$('#' + CSS.escape(name)).removeClass("disabled");
+			$('#' + CSS.escape(name)).removeAttr("disabled"); 			
+		}
+	}
+	
+};
 
 $(document).ready(loaded());
-
 
 
 
