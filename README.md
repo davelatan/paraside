@@ -1,15 +1,15 @@
-// Assicurati di includere la libreria parasite.js nel tuo progetto
+// Make sure to include the parasite.js library in your project
 // <script src="parasite.js"></script>
 
 $(document).ready(function () {
-    // Definizione dei dati JSON per creare l'interfaccia
+    // Definition of the JSON data to create the interface
     const jsonData = [
         {
             type: "div",
             name: "container1",
             attributes: {
                 styles: { istyles: { style: "border: 2px solid black; padding: 10px; width: 300px; height: 200px;" } },
-                cont: { html: "Questo è un contenitore principale" },
+                cont: { html: "This is a main container" },
             },
         },
         {
@@ -17,9 +17,9 @@ $(document).ready(function () {
             name: "myButton",
             attributes: {
                 styles: { istyles: { style: "background-color: blue; color: white; padding: 10px;" } },
-                cont: { label: "Cliccami!" },
+                cont: { label: "Click me!" },
                 events: {
-                    click: () => alert("Bottone cliccato!"),
+                    click: () => alert("Button clicked!"),
                 },
             },
         },
@@ -28,14 +28,14 @@ $(document).ready(function () {
             name: "myList",
             attributes: {
                 styles: { istyles: { style: "margin-top: 10px;" } },
-                cont: { items: { item1: "Elemento 1", item2: "Elemento 2", item3: "Elemento 3" } },
+                cont: { items: { item1: "Item 1", item2: "Item 2", item3: "Item 3" } },
                 events: {
-                    click: (event) => console.log(`Elemento selezionato: ${$(event.target).text()}`),
+                    click: (event) => console.log(`Selected item: ${$(event.target).text()}`),
                 },
             },
         },
     ];
 
-    // Creazione dell'interfaccia utilizzando la funzione della libreria
+    // Interface creation using the library function
     createInterface(jsonData);
 });
